@@ -245,5 +245,42 @@ To display description messages you can use this command:
 $ sudo dmesg -t | tail -7
 ```
 
+## Kernel Module's lifecycle
+
+A program usually begins with a main() function, executes a bunch of instructions and terminates upon completion of those instructions. 
+Kernel modules work a bit differently.
+- **A module always begin with** either the **init_module** *or* the function you specify with **module_init call**. 
+This is the **entry function** for modules: it tells the kernel what functionality the module provides and sets up the kernel to run the module’s functions when they are needed. 
+- Once it does this, entry function returns and the module does nothing until the kernel wants to do something with the code that the module provides.
+- **All modules end by** calling either **cleanup_module** *or* the function you specify with the **module_exit call**. 
+This is the **exit function** for modules; it undoes whatever entry function did. It unregisters the functionality that the entry function registered.
+
+## User space and Kernel space
+
+The kernel needs to keep things orderly, and not give users access to resources whenever they feel like it. To this end, a CPU can run in **different modes**. 
+Each mode gives a different level of freedom to do what you want on the system. The Intel x86 architecture had 4 of these modes, which were called **rings**. 
+**Unix uses only two rings**; the highest ring (**ring 0**, also known as “*supervisor mode*” where everything is allowed to happen) and **ring 4**, which is called “*user mode*”.
+
+## Namespace
+
+If you are writing routines which will be part of a bigger problem, any global variables you have are part of a community of other peoples’ global variables: some of the variable names can clash!
+When a program has lots of global variables which aren’t meaningful enough to be distinguished, you get **namespace pollution**. 
+In large projects, effort must be made to remember reserved names, and to find ways to develop a scheme for naming unique variable names and symbols.
+
+**When writing kernel code**:
+- Even the smallest module will be linked against the entire kernel, so this is definitely an issue. 
+The best way to deal with this is to **declare all your variables as static and to use a well-defined prefix for your symbols**. 
+By convention, all kernel prefixes are lowercase. 
+
+- If you do not want to declare everything as static, another option is to **declare a symbol table and register it with the kernel**. 
+The file */proc/kallsyms* holds all the symbols that the kernel knows about and which are therefore accessible to your modules since they share the kernel’s codespace.
+
+## Codespace
+
+The kernel has its own space of memory. Since a module is code which can be dynamically inserted and removed in the kernel, it shares the kernel’s codespace rather than having its own. Therefore, **if your module segfaults, the kernel segfaults**. 
+And if you start writing over data because of an off-by-one error, then you’re trampling on kernel data (or code). 
+This is even worse than it sounds, so try your best to be careful.
+The above discussion is true for any operating system which uses a monolithic kernel. 
+There are things called *microkernels* which have modules which get their own codespace.
 
 >**Reference site:** This tutorial follows the guidelines written (more accurately) at: <https://sysprog21.github.io/lkmpg/#what-is-a-kernel-module>
