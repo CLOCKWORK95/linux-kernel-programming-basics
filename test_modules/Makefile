@@ -1,5 +1,6 @@
 obj-m+=helloworld1.o 
- 
+obj-m+=cmd_line_args_module.o
+
 PWD:=$(CURDIR) 
  
 all: 
