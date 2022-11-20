@@ -43,10 +43,10 @@ Follow the next steps in order to implement and load a simple helloworld dynamic
 
 - Make a test directory.
 
-- A simple helloworld kernel module has a structure like the one below. Create a **helloworld.c** file in the test directory as follows:
+- A simple helloworld kernel module has a structure like the one below. Create a **helloworld1.c** file in the test directory as follows:
 ```C
 /* 
- * helloworld.c - a simple kernel module. 
+ * helloworld1.c - a simple kernel module. 
  */ 
 
 #include <linux/init.h>
@@ -94,7 +94,7 @@ module_exit(whatever_exit_name);
 
 - Now you will need a **Makefile**. If you copy and paste this, make sure the indentation uses tabs and not spaces.
 ```makefile
-obj-m += helloworld.o 
+obj-m += helloworld1.o 
  
 PWD := $(CURDIR) 
  
@@ -105,7 +105,11 @@ clean:
     make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
 ```
 
-- If all goes smoothly **you should have a compiled helloworld1.ko module**. You can **find info** on it with the command:
+- Compile your kernel module with :
+```
+make all
+```
+If all went smoothly **you should have a compiled helloworld1.ko module**. You can **find info** on it with the command:
 ```
 modinfo helloworld1.ko
 ```
@@ -154,6 +158,92 @@ Built-in drivers do not need a cleanup function, while loadable modules do.
 These macros are defined in *include/linux/init.h* and serve to free up kernel memory. 
 When you boot your kernel and see something like Freeing unused kernel memory: 236k freed, this is precisely what the kernel is freeing.
 
-## (coming soon : command line parameters for kernel modules)
+## Command line parameters for kernel modules
+**Modules can take command line arguments**, but not with the argc/argv you might be used to.
+
+To be able passing command line arguments to your module, declare the variables that will take the values them as global (static) on the source file and then use the *module_param()* macro (defined in *include/linux/moduleparam.h*) to set the mechanism up. 
+The *module_param()* macro takes 3 arguments: the name of the variable, its type and permissions for the corresponding file in sysfs. 
+It is possible to use arrays of integers or strings with *module_param_array()* and *module_param_string()*.
+The variable declarations and macros should be placed at the beginning of the module, for clarity. 
+Lastly, there is a macro function, MODULE_PARM_DESC() , that is used to document arguments that the module can take. It takes two parameters: a variable name and a free form string describing that variable.
+
+The following module source code is shared as an example:
+```C
+/* 
+ * cmd_line_args_module.c - Demonstrates command line argument passing to a module. 
+ */ 
+#include <linux/init.h> 
+#include <linux/kernel.h> 
+#include <linux/module.h> 
+#include <linux/moduleparam.h> 
+#include <linux/stat.h> 
+ 
+MODULE_LICENSE("GPL"); 
+
+static int myint = 0; 
+static char *mystring = "default"; 
+static int myintarray[2] = { 0, 0 }; 
+static int arr_argc = 2; 
+ 
+/* module_param(foo, int, 0000) 
+ * The first param is the parameters name. 
+ * The second param is its data type. 
+ * The final argument is the permissions bits, 
+ * for exposing parameters in sysfs (if non-zero) at a later stage. 
+ */ 
+
+module_param(myint, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH); 
+MODULE_PARM_DESC(myint, "An integer"); 
+
+module_param(mystring, charp, 0000); 
+MODULE_PARM_DESC(mystring, "A character string"); 
+ 
+/* module_param_array(name, type, num, perm); 
+ * The first param is the parameter's (in this case the array's) name. 
+ * The second param is the data type of the elements of the array. 
+ * The third argument is a pointer to the variable that will store the number 
+ * of elements of the array initialized by the user at module loading time. 
+ * The fourth argument is the permission bits. 
+ */ 
+
+module_param_array(myintarray, int, &arr_argc, 0000); 
+MODULE_PARM_DESC(myintarray, "An array of integers"); 
+ 
+static int __init mod_init(void) 
+{ 
+    int i; 
+ 
+    pr_info("Module parameters values are the following\n=============\n"); 
+    pr_info("myshort is a short integer: %hd\n", myshort); 
+    pr_info("myint is an integer: %d\n", myint); 
+    pr_info("mylong is a long integer: %ld\n", mylong); 
+    pr_info("mystring is a string: %s\n", mystring); 
+ 
+    for (i = 0; i < ARRAY_SIZE(myintarray); i++) 
+        pr_info("myintarray[%d] = %d\n", i, myintarray[i]); 
+ 
+    pr_info("got %d arguments for myintarray.\n", arr_argc); 
+    return 0; 
+} 
+ 
+static void __exit mod_exit(void) 
+{ 
+    pr_info("Goodbye command line demonstration\n"); 
+} 
+ 
+module_init(mod_init); 
+module_exit(mod_exit);
+```
+
+At runtime, insmod will fill the variables with any command line arguments that are specified, like follows:
+```
+sudo insmod cmd_line_args_module.ko myint=5 mystring=goofy myintarray=-1,14
+```
+
+To display description messages you can use this command:
+```
+$ sudo dmesg -t | tail -7
+```
+
 
 >**Reference site:** This tutorial follows the guidelines written (more accurately) at: <https://sysprog21.github.io/lkmpg/#what-is-a-kernel-module>
